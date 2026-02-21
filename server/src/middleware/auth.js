@@ -4,8 +4,9 @@ import jwt from "jsonwebtoken";
 export function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization; // "Bearer <token>"
-    if (!header)
+    if (!header) {
       return res.status(401).json({ error: "Missing Authorization header" });
+    }
 
     const [type, token] = header.split(" ");
     if (type !== "Bearer" || !token) {
@@ -13,7 +14,14 @@ export function requireAuth(req, res, next) {
     }
 
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload; // attach user info to request
+
+    // ✅ Normalize user id so controllers can always use req.user.id
+    const userId = payload.userId ?? payload.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Token payload missing user id" });
+    }
+
+    req.user = { id: userId, ...payload };
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid or expired token" });
