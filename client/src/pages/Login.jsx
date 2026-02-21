@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { apiFetch, setToken, getToken } from "../api/http";
+import { useNavigate, Link } from "react-router-dom";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -57,6 +57,9 @@ export default function Login() {
       </form>
 
       <p>{msg}</p>
+      <p style={{ marginTop: 12 }}>
+        New here? <Link to="/register">Create an account</Link>
+      </p>
     </div>
   );
 }
