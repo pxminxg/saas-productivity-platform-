@@ -1,19 +1,19 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiFetch, setToken } from "../api/http";
+import Toast from "../components/Toast";
 
 export default function Register() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
-  const [isError, setIsError] = useState(false);
+
+  const [toast, setToast] = useState(null);
+  const clearToast = () => setToast(null);
 
   async function handleRegister(e) {
     e.preventDefault();
-    setIsError(false);
-    setMsg("Creating account...");
 
     try {
       await apiFetch("/auth/register", {
@@ -27,11 +27,18 @@ export default function Register() {
       });
 
       setToken(loginData.token);
-      setMsg("Account created!");
+      setToast({
+        type: "success",
+        title: "Account created",
+        message: "You’re in!",
+      });
       navigate("/dashboard");
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({
+        type: "error",
+        title: "Register failed",
+        message: err.message,
+      });
     }
   }
 
@@ -44,6 +51,8 @@ export default function Register() {
         placeItems: "center",
       }}
     >
+      <Toast toast={toast} clearToast={clearToast} />
+
       <div className="card" style={{ width: "100%", maxWidth: 520 }}>
         <div className="cardPad">
           <div className="row spread">
@@ -65,7 +74,7 @@ export default function Register() {
 
             <input
               className="input"
-              placeholder="Password (try 6+ characters)"
+              placeholder="Password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -76,10 +85,6 @@ export default function Register() {
               Register
             </button>
           </form>
-
-          <p className={`msg ${msg ? (isError ? "msgErr" : "msgOk") : ""}`}>
-            {msg}
-          </p>
 
           <p className="sub" style={{ marginTop: 14 }}>
             Already have an account? <Link to="/login">Login</Link>

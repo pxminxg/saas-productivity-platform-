@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch, clearToken, getToken } from "../api/http";
+import Toast from "../components/Toast";
 
 export default function Dashboard() {
   const navigate = useNavigate();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+
   const [tasks, setTasks] = useState([]);
-  const [msg, setMsg] = useState("");
-  const [isError, setIsError] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const [toast, setToast] = useState(null);
+  const clearToast = () => setToast(null);
+
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [sort, setSort] = useState("newest");
 
   const stats = useMemo(() => {
     const total = tasks.length;
@@ -18,28 +26,55 @@ export default function Dashboard() {
     return { total, done, open };
   }, [tasks]);
 
+  const visibleTasks = useMemo(() => {
+    let list = [...tasks];
+
+    if (filter === "open") list = list.filter((t) => !t.isCompleted);
+    if (filter === "done") list = list.filter((t) => t.isCompleted);
+
+    const q = query.trim().toLowerCase();
+    if (q) {
+      list = list.filter((t) => {
+        const a = (t.title || "").toLowerCase();
+        const b = (t.description || "").toLowerCase();
+        return a.includes(q) || b.includes(q);
+      });
+    }
+
+    if (sort === "newest")
+      list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    if (sort === "oldest")
+      list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    if (sort === "az")
+      list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+
+    return list;
+  }, [tasks, query, filter, sort]);
+
   async function loadTasks() {
     try {
-      setIsError(false);
+      setLoading(true);
       const data = await apiFetch("/tasks");
       setTasks(Array.isArray(data) ? data : []);
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({ type: "error", title: "Fetch failed", message: err.message });
+    } finally {
+      setLoading(false);
     }
   }
 
   async function createTask(e) {
     e.preventDefault();
     if (!title.trim()) {
-      setIsError(true);
-      setMsg("Title is required.");
+      setToast({
+        type: "error",
+        title: "Missing title",
+        message: "Task title is required.",
+      });
       return;
     }
 
     try {
-      setIsError(false);
-      setMsg("Creating task...");
       const created = await apiFetch("/tasks", {
         method: "POST",
         body: JSON.stringify({ title, description }),
@@ -48,10 +83,9 @@ export default function Dashboard() {
       setTitle("");
       setDescription("");
       setTasks((prev) => [created, ...prev]);
-      setMsg("Task created!");
+      setToast({ type: "success", title: "Created", message: "Task added." });
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({ type: "error", title: "Create failed", message: err.message });
     }
   }
 
@@ -61,11 +95,14 @@ export default function Dashboard() {
         method: "PUT",
         body: JSON.stringify({ isCompleted: !task.isCompleted }),
       });
-
       setTasks((prev) => prev.map((t) => (t.id === task.id ? updated : t)));
+      setToast({
+        type: "success",
+        title: "Updated",
+        message: updated.isCompleted ? "Marked complete." : "Marked open.",
+      });
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({ type: "error", title: "Update failed", message: err.message });
     }
   }
 
@@ -73,11 +110,9 @@ export default function Dashboard() {
     try {
       await apiFetch(`/tasks/${taskId}`, { method: "DELETE" });
       setTasks((prev) => prev.filter((t) => t.id !== taskId));
-      setIsError(false);
-      setMsg("Task deleted!");
+      setToast({ type: "success", title: "Deleted", message: "Task removed." });
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({ type: "error", title: "Delete failed", message: err.message });
     }
   }
 
@@ -97,13 +132,14 @@ export default function Dashboard() {
 
   return (
     <div className="container">
-      {/* Top bar */}
+      <Toast toast={toast} clearToast={clearToast} />
+
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="cardPad row spread">
           <div>
             <h1 className="h1">Dashboard</h1>
             <p className="sub" style={{ marginBottom: 0 }}>
-              Your personal task space. Fast, clean, simple.
+              Linear-style productivity. Clean, fast, focused.
             </p>
           </div>
 
@@ -124,9 +160,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Main layout */}
       <div className="grid2">
-        {/* Create Task */}
         <div className="card">
           <div className="cardPad">
             <h3 style={{ marginTop: 0, marginBottom: 10 }}>Create task</h3>
@@ -148,35 +182,70 @@ export default function Dashboard() {
                 Add Task
               </button>
             </form>
-
-            {msg ? (
-              <p className={`msg ${isError ? "msgErr" : "msgOk"}`}>{msg}</p>
-            ) : null}
           </div>
         </div>
 
-        {/* Tasks */}
         <div className="card">
           <div className="cardPad">
             <div className="row spread" style={{ marginBottom: 10 }}>
               <h3 style={{ margin: 0 }}>My tasks</h3>
-              <span className="badge">Synced with DB</span>
+              <span className="badge">{loading ? "Loading..." : "Synced"}</span>
+            </div>
+
+            <div style={{ display: "grid", gap: 10, marginBottom: 12 }}>
+              <input
+                className="input"
+                placeholder="Search tasks..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                <button className="btn" onClick={() => setFilter("all")}>
+                  All
+                </button>
+                <button className="btn" onClick={() => setFilter("open")}>
+                  Open
+                </button>
+                <button className="btn" onClick={() => setFilter("done")}>
+                  Completed
+                </button>
+
+                <span style={{ width: 8 }} />
+
+                <select
+                  className="input"
+                  style={{ width: 170, padding: "10px 12px" }}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">A–Z</option>
+                </select>
+              </div>
             </div>
 
             <hr className="hr" />
 
-            {tasks.length === 0 ? (
+            {loading ? (
+              <div style={{ display: "grid", gap: 10 }}>
+                <div className="skeleton" style={{ height: 64 }} />
+                <div className="skeleton" style={{ height: 64 }} />
+                <div className="skeleton" style={{ height: 64 }} />
+              </div>
+            ) : visibleTasks.length === 0 ? (
               <p className="sub" style={{ margin: 0 }}>
-                No tasks yet. Add your first one ✨
+                No tasks found.
               </p>
             ) : (
               <div style={{ display: "grid", gap: 10 }}>
-                {tasks.map((t) => (
+                {visibleTasks.map((t) => (
                   <div
                     key={t.id}
                     className="card"
                     style={{
-                      background: "var(--panel-2)",
+                      background: "var(--surface2)",
                       borderRadius: 14,
                       boxShadow: "none",
                     }}
@@ -186,7 +255,7 @@ export default function Dashboard() {
                         <div style={{ minWidth: 0 }}>
                           <div
                             style={{
-                              fontWeight: 700,
+                              fontWeight: 750,
                               textDecoration: t.isCompleted
                                 ? "line-through"
                                 : "none",
@@ -194,6 +263,7 @@ export default function Dashboard() {
                           >
                             {t.title}
                           </div>
+
                           {t.description ? (
                             <div
                               className="sub"

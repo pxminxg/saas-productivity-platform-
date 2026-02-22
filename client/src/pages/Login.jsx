@@ -1,19 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { apiFetch, setToken, getToken } from "../api/http";
+import Toast from "../components/Toast";
 
 export default function Login() {
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState("");
-  const [isError, setIsError] = useState(false);
+
+  const [toast, setToast] = useState(null);
+  const clearToast = () => setToast(null);
 
   async function handleLogin(e) {
     e.preventDefault();
-    setIsError(false);
-    setMsg("Logging in...");
 
     try {
       const data = await apiFetch("/auth/login", {
@@ -22,15 +22,20 @@ export default function Login() {
       });
 
       setToken(data.token);
-      setMsg("Logged in!");
+      setToast({
+        type: "success",
+        title: "Logged in",
+        message: "Welcome back!",
+      });
       navigate("/dashboard");
     } catch (err) {
-      setIsError(true);
-      setMsg(err.message);
+      setToast({ type: "error", title: "Login failed", message: err.message });
     }
   }
 
-  if (getToken()) navigate("/dashboard");
+  useEffect(() => {
+    if (getToken()) navigate("/dashboard");
+  }, [navigate]);
 
   return (
     <div
@@ -41,6 +46,8 @@ export default function Login() {
         placeItems: "center",
       }}
     >
+      <Toast toast={toast} clearToast={clearToast} />
+
       <div className="card" style={{ width: "100%", maxWidth: 520 }}>
         <div className="cardPad">
           <div className="row spread">
@@ -73,10 +80,6 @@ export default function Login() {
               Login
             </button>
           </form>
-
-          <p className={`msg ${msg ? (isError ? "msgErr" : "msgOk") : ""}`}>
-            {msg}
-          </p>
 
           <p className="sub" style={{ marginTop: 14 }}>
             New here? <Link to="/register">Create an account</Link>
