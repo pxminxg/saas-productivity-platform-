@@ -8,63 +8,84 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [msg, setMsg] = useState("");
+  const [isError, setIsError] = useState(false);
 
   async function handleRegister(e) {
     e.preventDefault();
+    setIsError(false);
     setMsg("Creating account...");
 
     try {
-      // 1) Register
       await apiFetch("/auth/register", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
-      // 2) Auto-login right after registering
       const loginData = await apiFetch("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
 
       setToken(loginData.token);
-      setMsg("✅ Account created & logged in!");
+      setMsg("Account created!");
       navigate("/dashboard");
     } catch (err) {
-      setMsg("❌ " + err.message);
+      setIsError(true);
+      setMsg(err.message);
     }
   }
 
   return (
     <div
+      className="container"
       style={{
-        padding: 24,
-        fontFamily: "Arial",
-        maxWidth: 420,
-        margin: "0 auto",
+        minHeight: "calc(100vh - 64px)",
+        display: "grid",
+        placeItems: "center",
       }}
     >
-      <h2>Create account</h2>
+      <div className="card" style={{ width: "100%", maxWidth: 520 }}>
+        <div className="cardPad">
+          <div className="row spread">
+            <div>
+              <h1 className="h1">Create your account</h1>
+              <p className="sub">Start tracking tasks in seconds.</p>
+            </div>
+            <span className="badge">Free</span>
+          </div>
 
-      <form onSubmit={handleRegister} style={{ display: "grid", gap: 10 }}>
-        <input
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <input
-          placeholder="Password (min 6 recommended)"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button type="submit">Register</button>
-      </form>
+          <form onSubmit={handleRegister} style={{ display: "grid", gap: 12 }}>
+            <input
+              className="input"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+            />
 
-      <p style={{ marginTop: 16 }}>{msg}</p>
+            <input
+              className="input"
+              placeholder="Password (try 6+ characters)"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
 
-      <p style={{ marginTop: 12 }}>
-        Already have an account? <Link to="/login">Login</Link>
-      </p>
+            <button className="btn btnPrimary" type="submit">
+              Register
+            </button>
+          </form>
+
+          <p className={`msg ${msg ? (isError ? "msgErr" : "msgOk") : ""}`}>
+            {msg}
+          </p>
+
+          <p className="sub" style={{ marginTop: 14 }}>
+            Already have an account? <Link to="/login">Login</Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
